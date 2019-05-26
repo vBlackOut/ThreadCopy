@@ -1,36 +1,87 @@
-import Queue, threading, os, time
+import queue, threading, os, time
+import fnmatch
+from collections import Counter
+import argparse
 import shutil
 
-fileQueue = Queue.Queue()
-destPath = 'path/to/cop'
+
+parser = argparse.ArgumentParser(description='Process some integers.')
+
+parser.add_argument('src', help='source file or directory')
+parser.add_argument('dest', help='destination file or directory')
+args = parser.parse_args()
+
+srcPath = args.src
+destPath = args.dest
+
+fileQueue = queue.Queue()
 
 class ThreadedCopy:
     totalFiles = 0
     copyCount = 0
     lock = threading.Lock()
 
-    def __init__(self):
-        with open("filelist.txt", "r") as txt: #txt with a file per line
-            fileList = txt.read().splitlines()
+    def __init__(self, srcPath, destPath):
+        self.srcPath = srcPath
+        self.destPath = destPath
 
-        if not os.path.exists(destPath):
-            os.mkdir(destPath)
+        allFiles = self.findFiles(self.srcPath)
+        if not os.path.exists(self.destPath):
+            os.mkdir(self.destPath)
 
-        self.totalFiles = len(fileList)
+        self.totalFiles = len(allFiles)
 
-        print str(self.totalFiles) + " files to copy."
-        self.threadWorkerCopy(fileList)
+        print("{} files to copy.".format(self.totalFiles))
+        self.threadWorkerCopy(allFiles)
 
+
+    def findFiles(self, directory, pattern='*'):
+        if not os.path.exists(directory):
+            raise ValueError("Directory not found {}".format(directory))
+
+        matches = []
+        for root, dirnames, filenames in os.walk(directory):
+            for filename in filenames:
+                full_path = os.path.join(root, filename)
+                if fnmatch.filter([full_path], pattern):
+                    matches.append(os.path.join(root, filename))
+        return matches
 
     def CopyWorker(self):
         while True:
             fileName = fileQueue.get()
-            shutil.copy(fileName, destPath)
+
+            #if not os.path.exists(os.path.dirname(destPath)):
+            #print(destPath+fileName)
+            destPathClear = self.pathClean(destPath+fileName, destPath)
+            #print(destPathClear)
+            try:
+                os.makedirs(os.path.dirname(destPathClear))
+            except FileExistsError:
+                pass
+            try:
+                shutil.copy(fileName, os.path.dirname(destPathClear))
+            except PermissionError as e:
+                print(e)
             fileQueue.task_done()
             with self.lock:
                 self.copyCount += 1
                 percent = (self.copyCount * 100) / self.totalFiles
-                print str(percent) + " percent copied."
+                print("\033[F{} percent copied.".format(percent))
+
+    def pathClean(self, stringPath, destPath):
+        workPath = []
+
+        for string in stringPath.split("/"):
+            if string not in workPath:
+             workPath.append(string)
+
+        for string in destPath.split("/"):
+            if string in workPath:
+                workPath.remove(string)
+
+        outFile = "{}/{}".format(self.destPath, "/".join(workPath[1:]))
+        return outFile
 
     def threadWorkerCopy(self, fileNameList):
         for i in range(16):
@@ -41,4 +92,4 @@ class ThreadedCopy:
             fileQueue.put(fileName)
         fileQueue.join()
 
-ThreadedCopy()
+ThreadedCopy(srcPath, destPath)
