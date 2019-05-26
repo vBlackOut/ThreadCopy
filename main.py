@@ -51,10 +51,7 @@ class ThreadedCopy:
         while True:
             fileName = fileQueue.get()
 
-            #if not os.path.exists(os.path.dirname(destPath)):
-            #print(destPath+fileName)
             destPathClear = self.pathClean(destPath+fileName, destPath)
-            #print(destPathClear)
             try:
                 os.makedirs(os.path.dirname(destPathClear))
             except FileExistsError:
