@@ -11,7 +11,7 @@ by default the script run 2 threads.
 # install
 - cd ThreadCopy
 - cp tcp /usr/bin
-- cd /usr/bin && chmod +x tcp
+- chmod +x /usr/bin/tcp
 - run tcp command for views helpers
 
 ![GitHub Logo](https://i.ibb.co/h8YWJrv/Capture-du-2019-05-26-05-41-49.png)
