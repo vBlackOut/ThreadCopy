@@ -9,21 +9,29 @@ parser = argparse.ArgumentParser(description='Process some integers.')
 
 parser.add_argument('src', help='source file or directory')
 parser.add_argument('dest', help='destination file or directory')
+parser.add_argument('-v', help='verbose mode output error')
+parser.add_argument('-t', type=int, default=2, help='define number thread default is 2')
+
 args = parser.parse_args()
 
 srcPath = args.src
 destPath = args.dest
+verbose = args.v
+thread = args.t
 
 fileQueue = queue.Queue()
 
 class ThreadedCopy:
     totalFiles = 0
     copyCount = 0
+    totalError = 0
     lock = threading.Lock()
 
-    def __init__(self, srcPath, destPath):
+    def __init__(self, srcPath, destPath, verbose, thread):
         self.srcPath = srcPath
         self.destPath = destPath
+        self.verbose = verbose
+        self.thread = thread
 
         allFiles = self.findFiles(self.srcPath)
         if not os.path.exists(self.destPath):
@@ -52,19 +60,28 @@ class ThreadedCopy:
             fileName = fileQueue.get()
 
             destPathClear = self.pathClean(destPath+fileName, destPath)
+
             try:
                 os.makedirs(os.path.dirname(destPathClear))
             except FileExistsError:
                 pass
+
             try:
                 shutil.copy(fileName, os.path.dirname(destPathClear))
             except PermissionError as e:
-                print(e)
+                if self.verbose:
+                    print(e)
+                self.totalError += 1
+
             fileQueue.task_done()
             with self.lock:
                 self.copyCount += 1
                 percent = (self.copyCount * 100) / self.totalFiles
-                print("\033[F{} percent copied.".format(percent))
+                if percent > 1:
+                    total_time = (time.time() - self.start_time)
+                    print("\033[F\033[K{} percent copied. {}/{} Error:{} WorkThread:{} TotalTime:{}s".format(percent, self.copyCount, self.totalFiles, self.totalError, self.thread, round(total_time,2)))
+                else:
+                    print("\033[F\033[K{} percent copied. {}/{} Error:{} WorkThread:{}".format(percent, self.copyCount, self.totalFiles, self.totalError, self.thread))
 
     def pathClean(self, stringPath, destPath):
         workPath = []
@@ -81,7 +98,8 @@ class ThreadedCopy:
         return outFile
 
     def threadWorkerCopy(self, fileNameList):
-        for i in range(16):
+        self.start_time = time.time()
+        for i in range(self.thread):
             t = threading.Thread(target=self.CopyWorker)
             t.daemon = True
             t.start()
@@ -89,4 +107,4 @@ class ThreadedCopy:
             fileQueue.put(fileName)
         fileQueue.join()
 
-ThreadedCopy(srcPath, destPath)
+ThreadedCopy(srcPath, destPath, verbose, thread)
