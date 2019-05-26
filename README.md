@@ -9,7 +9,7 @@ by default the script run 2 threads.
 - -t Number Thread
 
 # install
-- 
+- cd ThreadCopy
 - cp tc /usr/bin
 - cd /usr/bin && chmod +x tc
 - run tc command for views helpers
